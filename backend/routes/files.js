@@ -57,7 +57,6 @@ router.post('/upload', authenticate, upload.single('file'), async (req, res) => 
 
     const newFile = new File({
       name: req.file.filename,
-      originalName: req.file.originalname, 
       path: cleanPath,
       size: req.file.size,
       group: req.selectedGroup._id,
@@ -179,7 +178,7 @@ router.get('/download/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'File not found on server' });
     }
 
-    res.download(filePath, file.originalName);
+    res.download(filePath, file.name);
   } catch (err) {
     console.error('Download error:', err);
     res.status(500).json({ 

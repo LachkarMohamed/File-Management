@@ -24,21 +24,28 @@ export const filesApi = {
     }));
   },
   
- uploadFile: (groupName: string, file: globalThis.File, currentPath?: string) => {
+ uploadFile: (
+    groupName: string, 
+    file: globalThis.File, 
+    currentPath: string | undefined,
+    onProgress: (progress: number) => void
+  ) => {
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('originalName', file.name);
     
     const queryParams = new URLSearchParams();
     let fullPath = groupName;
     if (currentPath) fullPath += `/${currentPath}`;
     if (fullPath) queryParams.append('path', fullPath);
 
-    return apiClient.upload<{ success: boolean }>(
+    return apiClient.uploadWithProgress<{ success: boolean }>(
       `/files/upload?${queryParams.toString()}`,
-      formData
+      formData,
+      onProgress
     );
   },
-    downloadFile: async (fileId: string) => {
+  downloadFile: async (fileId: string, fileName: string) => {
     try {
       const token = localStorage.getItem('token');
       const response = await fetch(
@@ -56,7 +63,7 @@ export const filesApi = {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = ''; // Filename will come from Content-Disposition header
+      a.download = fileName; // Filename will come from Content-Disposition header
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);

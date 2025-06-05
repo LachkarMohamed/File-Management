@@ -8,6 +8,8 @@ import FolderContentsPage from './pages/FolderContentsPage';
 import MainLayout from './components/layout/MainLayout';
 import FavoritesPage from './pages/FavoritesPage';
 import AdminPage from './pages/AdminPage';
+import { NotificationCenter } from './components/notifications/NotificationCenter';
+
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, loading } = useAuth();
@@ -72,6 +74,7 @@ function App() {
     <Router>
       <AuthProvider>
         <Toaster position="top-right" />
+        <NotificationCenter /> 
         <AppRoutes />
       </AuthProvider>
     </Router>

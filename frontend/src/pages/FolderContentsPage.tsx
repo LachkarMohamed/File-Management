@@ -8,6 +8,7 @@ import Button from '../components/ui/Button';
 import FileGrid from '../components/files/FileGrid';
 import FileTable from '../components/files/FileTable';
 import { groupsApi } from '../api/groups';
+import { notifyUploadStart, notifySuccess, notifyError } from '../components/notifications/NotificationCenter';
 
 interface FolderContentsPageProps {
   files?: File[];
@@ -31,6 +32,10 @@ const FolderContentsPage: React.FC<FolderContentsPageProps> = ({
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [fileTypeFilter, setFileTypeFilter] = useState<FileType>('all');
   const [groupName, setGroupName] = useState('');
+
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [currentUpload, setCurrentUpload] = useState('');
 
   const query = new URLSearchParams(location.search);
   const currentPath = query.get('path') || '';
@@ -167,25 +172,42 @@ const FolderContentsPage: React.FC<FolderContentsPageProps> = ({
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !groupName || !groupId) {
-      setError('Missing required information for upload');
+      notifyError('Missing required information for upload');
       return;
     }
 
+    e.target.value = ''; // Reset input
+    const notificationId = notifyUploadStart(file.name);
+
     try {
-      await filesApi.uploadFile(groupName, file, currentPath);
+      await filesApi.uploadFile(
+        groupName, 
+        file, 
+        currentPath, 
+        (progress) => {
+          // Update progress globally
+          const event = new CustomEvent('updateProgress', { 
+            detail: { id: notificationId, progress } 
+          });
+          window.dispatchEvent(event);
+        }
+      );
       
-      // Refresh files using groupId
+      notifySuccess(`${file.name} uploaded successfully!`);
+      
+      // Refresh files
       if (!propFiles) {
         const data = await filesApi.getFiles(groupId, { path: currentPath });
         setLocalFiles(data);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'File upload failed');
+      const message = err instanceof Error ? err.message : 'File upload failed';
+      notifyError(message);
     }
   };
 
   const handleDownload = (file: File) => {
-    if (!file.isFolder) filesApi.downloadFile(file._id);
+    filesApi.downloadFile(file._id, file.name);
   };
 
   const handleToggleFavorite = async (file: File) => {
@@ -231,7 +253,8 @@ const FolderContentsPage: React.FC<FolderContentsPageProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
-              <Search className="absolute inset-y-0 left-3 h-5 w-5 text-gray-400" />
+              <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+              
             </div>
           </form>
           
@@ -247,9 +270,41 @@ const FolderContentsPage: React.FC<FolderContentsPageProps> = ({
                 htmlFor="file-upload"
                 className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 cursor-pointer"
               >
-                <Upload className="h-5 w-5 mr-2" />
-                Upload File
+                {isUploading ? (
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                {isUploading ? 'Uploading...' : 'Upload File'}
               </label>
+
+            </div>
+          )}
+          {isUploading && (
+            <div className="mt-4 bg-white p-4 rounded-lg shadow-sm border border-blue-100">
+              <div className="flex items-center space-x-3">
+                <div className="flex-1">
+                  <div className="flex justify-between text-sm mb-1">
+                    <span className="font-medium text-gray-700 truncate max-w-[200px]">
+                      {currentUpload}
+                    </span>
+                    <span className="text-blue-600 font-medium">{uploadProgress}%</span>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div 
+                      className={`h-2 rounded-full transition-all duration-300 ease-out ${
+                        uploadProgress === 100 
+                          ? 'bg-green-500 animate-pulse-bar' 
+                          : 'bg-blue-600'
+                      }`}
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
